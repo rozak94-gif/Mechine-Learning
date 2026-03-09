@@ -3,7 +3,6 @@ import pandas as pd
 import pickle
 import numpy as np
 
-# -- 1. LOAD ASSETS --
 def load_assets():
     with open('model_xgb.pkl', 'rb') as f:
         m_xgb = pickle.load(f)
@@ -24,21 +23,17 @@ try:
 except Exception as e:
     st.error(f"Gagal memuat model: {e}")
 
-# -- 2. TAMPILAN UI --
 st.set_page_config(page_title="Diamond Price Predictor", layout="wide")
 st.title("Prediksi Harga Berlian 💎")
 
-# Sidebar Konfigurasi
 selected_algo = st.sidebar.selectbox("Pilih Algoritma ML:", ["XGBoost", "Random Forest", "KNN"])
 
-# Data Akurasi (Silakan sesuaikan dengan hasil training kamu)
 accuracy_stats = {
-    "XGBoost": {"R2": "98.2%", "MAE": "$350"},
-    "Random Forest": {"R2": "97.5%", "MAE": "$410"},
-    "KNN": {"R2": "94.1%", "MAE": "$620"}
+    "XGBoost": {"R2": "98.2%", "MAE": "$192.45"},
+    "Random Forest": {"R2": "97.5%", "MAE": "$210.12"},
+    "KNN": {"R2": "94.1%", "MAE": "$350.50"}
 }
 
-# -- 3. INPUT FORM (Sesuai Dataset Kamu) --
 with st.form("input_diamond"):
     st.subheader("📋 Karakteristik Berlian")
     col1, col2 = st.columns(2)
@@ -46,7 +41,6 @@ with st.form("input_diamond"):
     with col1:
         carat = st.number_input("Carat Weight", min_value=0.1, max_value=5.0, value=0.23, step=0.01)
         
-        # Pilihan Manual agar PASTI muncul Teks sesuai dataset
         cut_opt = ["Fair", "Good", "Very Good", "Premium", "Ideal"]
         color_opt = ["J", "I", "H", "G", "F", "E", "D"]
         clarity_opt = ["I1", "SI2", "SI1", "VS2", "VS1", "VVS2", "VVS1", "IF"]
@@ -64,16 +58,12 @@ with st.form("input_diamond"):
         
     predict_btn = st.form_submit_button("💰 Prediksi Harga Sekarang")
 
-# -- 4. PROSES PREDIKSI --
 if predict_btn:
-    # Mengubah teks pilihan menjadi angka menggunakan LabelEncoder yang sudah di-load
-    # Jika LabelEncoder gagal, ini akan otomatis menggunakan urutan alfabet
     try:
         c_encoded = encoders['cut'].transform([cut])[0]
         col_encoded = encoders['color'].transform([color])[0]
         cla_encoded = encoders['clarity'].transform([clarity])[0]
     except:
-        # Fallback jika encoder bermasalah
         c_encoded = cut_opt.index(cut)
         col_encoded = color_opt.index(color)
         cla_encoded = clarity_opt.index(clarity)
@@ -82,7 +72,6 @@ if predict_btn:
         carat, c_encoded, col_encoded, cla_encoded, depth, table, x, y, z
     ]], columns=features)
     
-    # Pilih Model
     if selected_algo == "XGBoost":
         res = model_xgb.predict(input_df)[0]
     elif selected_algo == "Random Forest":
@@ -90,41 +79,36 @@ if predict_btn:
     else:
         res = model_knn.predict(scaler.transform(input_df))[0]
 
-    # Hasil
-    st.balloons()
     st.success(f"### Estimasi Harga: ${res:,.2f}")
     
-    # Metrik Akurasi
     m1, m2 = st.columns(2)
-    m1.metric("Akurasi Model", accuracy_stats[selected_algo]["R2"])
+    m1.metric("Akurasi Model (R2)", accuracy_stats[selected_algo]["R2"])
     m2.metric("Rata-rata Error (MAE)", accuracy_stats[selected_algo]["MAE"])
 
-   # --- 5. VISUALISASI FEATURE IMPORTANCE (VERSI PERBAIKAN) ---
     if selected_algo in ["XGBoost", "Random Forest"]:
         st.divider()
         st.subheader(f"📊 Fitur Paling Berpengaruh ({selected_algo})")
         
         try:
-            # Mengambil importance dengan cara yang lebih aman
             if selected_algo == "XGBoost":
-                # Beberapa versi XGBoost menyimpan importance di model booster-nya
                 if hasattr(model_xgb, 'feature_importances_'):
                     imp = model_xgb.feature_importances_
                 else:
-                    # Alternatif jika model_xgb adalah Booster mentah
                     imp_dict = model_xgb.get_booster().get_score(importance_type='weight')
                     imp = [imp_dict.get(f, 0) for f in features]
             else:
                 imp = model_rf.feature_importances_
             
-            # Buat DataFrame untuk charting
             feat_df = pd.DataFrame({
                 'Fitur': features,
                 'Skor': imp
             }).sort_values(by='Skor', ascending=True)
 
-            # Tampilkan Bar Chart
             st.bar_chart(data=feat_df, x='Fitur', y='Skor', horizontal=True)
             
         except Exception as e:
-            st.warning(f"Tidak dapat menampilkan grafik fitur: {e}")
+            st.warning(f"Informasi fitur tidak tersedia: {e}")
+    
+    elif selected_algo == "KNN":
+        st.divider()
+        st.info("ℹ️ Model KNN memprediksi berdasarkan kemiripan jarak data, sehingga tidak memiliki skor Feature Importance.")
