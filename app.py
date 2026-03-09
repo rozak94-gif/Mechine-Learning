@@ -99,10 +99,32 @@ if predict_btn:
     m1.metric("Akurasi Model", accuracy_stats[selected_algo]["R2"])
     m2.metric("Rata-rata Error (MAE)", accuracy_stats[selected_algo]["MAE"])
 
-    # Feature Importance
+   # --- 5. VISUALISASI FEATURE IMPORTANCE (VERSI PERBAIKAN) ---
     if selected_algo in ["XGBoost", "Random Forest"]:
         st.divider()
         st.subheader(f"📊 Fitur Paling Berpengaruh ({selected_algo})")
-        imp = model_xgb.feature_importances_ if selected_algo == "XGBoost" else model_rf.feature_importances_
-        feat_df = pd.DataFrame({'Fitur': features, 'Skor': imp}).sort_values(by='Skor', ascending=True)
-        st.bar_chart(data=feat_df, x='Fitur', y='Skor', horizontal=True)
+        
+        try:
+            # Mengambil importance dengan cara yang lebih aman
+            if selected_algo == "XGBoost":
+                # Beberapa versi XGBoost menyimpan importance di model booster-nya
+                if hasattr(model_xgb, 'feature_importances_'):
+                    imp = model_xgb.feature_importances_
+                else:
+                    # Alternatif jika model_xgb adalah Booster mentah
+                    imp_dict = model_xgb.get_booster().get_score(importance_type='weight')
+                    imp = [imp_dict.get(f, 0) for f in features]
+            else:
+                imp = model_rf.feature_importances_
+            
+            # Buat DataFrame untuk charting
+            feat_df = pd.DataFrame({
+                'Fitur': features,
+                'Skor': imp
+            }).sort_values(by='Skor', ascending=True)
+
+            # Tampilkan Bar Chart
+            st.bar_chart(data=feat_df, x='Fitur', y='Skor', horizontal=True)
+            
+        except Exception as e:
+            st.warning(f"Tidak dapat menampilkan grafik fitur: {e}")
